@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Markdown Editor with Preview</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: #2c3e50;
+      color: white;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    
+    .mode-selector {
+      display: flex;
+      background: #34495e;
+      border-radius: 20px;
+      padding: 4px;
+      gap: 2px;
+    }
+    
+    .mode-button {
+      padding: 8px 16px;
+      border-radius: 16px;
+      background: transparent;
+      color: #bdc3c7;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.3s;
+      white-space: nowrap;
+    }
+    
+    .mode-button.active {
+      background: #3498db;
+      color: white;
+    }
+    
+    .mode-button:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+    
+    .content {
+      display: flex;
+      height: 600px;
+    }
+    
+    .editor-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .preview-pane {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      border-left: 1px solid #e1e8ed;
+      background: #fafbfc;
+    }
+    
+    .live-preview-pane {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      border-left: 1px solid #e1e8ed;
+      background: white;
+      outline: none;
+    }
+    
+    .live-preview-pane:focus {
+      box-shadow: inset 0 0 0 2px #3498db;
+    }
+    
+    .CodeMirror {
+      height: 100%;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .preview-content {
+      line-height: 1.6;
+      color: #333;
+    }
+    
+    .preview-content h1,
+    .preview-content h2,
+    .preview-content h3,
+    .preview-content h4,
+    .preview-content h5,
+    .preview-content h6 {
+      color: #2c3e50;
+      margin-top: 24px;
+      margin-bottom: 16px;
+    }
+    
+    .preview-content h1 {
+      border-bottom: 2px solid #e1e8ed;
+      padding-bottom: 8px;
+    }
+    
+    .preview-content h2 {
+      border-bottom: 1px solid #e1e8ed;
+      padding-bottom: 4px;
+    }
+    
+    .preview-content code {
+      background: #f1f3f4;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 0.9em;
+    }
+    
+    .preview-content pre {
+      background: #f8f9fa;
+      border: 1px solid #e1e8ed;
+      border-radius: 6px;
+      padding: 16px;
+      overflow-x: auto;
+    }
+    
+    .preview-content pre code {
+      background: none;
+      padding: 0;
+    }
+    
+    .preview-content blockquote {
+      border-left: 4px solid #3498db;
+      margin: 16px 0;
+      padding: 0 16px;
+      color: #666;
+    }
+    
+    .preview-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 16px 0;
+    }
+    
+    .preview-content th,
+    .preview-content td {
+      border: 1px solid #e1e8ed;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    
+    .preview-content th {
+      background: #f8f9fa;
+      font-weight: 600;
+    }
+    
+    .preview-content ul,
+    .preview-content ol {
+      margin: 16px 0;
+      padding-left: 24px;
+    }
+    
+    .preview-content li {
+      margin: 4px 0;
+    }
+    
+    .preview-content a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    
+    .preview-content a:hover {
+      text-decoration: underline;
+    }
+    
+    .live-preview-content {
+      line-height: 1.6;
+      color: #333;
+      min-height: 100%;
+    }
+    
+    .live-preview-content h1,
+    .live-preview-content h2,
+    .live-preview-content h3,
+    .live-preview-content h4,
+    .live-preview-content h5,
+    .live-preview-content h6 {
+      color: #2c3e50;
+      margin-top: 24px;
+      margin-bottom: 16px;
+      cursor: text;
+    }
+    
+    .live-preview-content h1 {
+      border-bottom: 2px solid #e1e8ed;
+      padding-bottom: 8px;
+    }
+    
+    .live-preview-content h2 {
+      border-bottom: 1px solid #e1e8ed;
+      padding-bottom: 4px;
+    }
+    
+    .live-preview-content code {
+      background: #f1f3f4;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 0.9em;
+    }
+    
+    .live-preview-content pre {
+      background: #f8f9fa;
+      border: 1px solid #e1e8ed;
+      border-radius: 6px;
+      padding: 16px;
+      overflow-x: auto;
+    }
+    
+    .live-preview-content pre code {
+      background: none;
+      padding: 0;
+    }
+    
+    .live-preview-content blockquote {
+      border-left: 4px solid #3498db;
+      margin: 16px 0;
+      padding: 0 16px;
+      color: #666;
+    }
+    
+    .live-preview-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 16px 0;
+    }
+    
+    .live-preview-content th,
+    .live-preview-content td {
+      border: 1px solid #e1e8ed;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    
+    .live-preview-content th {
+      background: #f8f9fa;
+      font-weight: 600;
+    }
+    
+    .live-preview-content ul,
+    .live-preview-content ol {
+      margin: 16px 0;
+      padding-left: 24px;
+    }
+    
+    .live-preview-content li {
+      margin: 4px 0;
+    }
+    
+    .live-preview-content a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    
+    .live-preview-content a:hover {
+      text-decoration: underline;
+    }
+    
+    .live-preview-content p {
+      margin: 16px 0;
+    }
+    
+    .full-width {
+      width: 100% !important;
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+    
+    .toolbar {
+      background: #ecf0f1;
+      padding: 10px 20px;
+      border-bottom: 1px solid #bdc3c7;
+      font-size: 14px;
+      color: #7f8c8d;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📝 Markdown Editor</h1>
+      <div class="toggle-container">
+        <div class="mode-selector">
+          <button class="mode-button active" data-mode="editor">📝 Editor</button>
+          <button class="mode-button" data-mode="live-preview">✨ Live Preview</button>
+          <button class="mode-button" data-mode="preview">👁️ Preview</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="toolbar">
+      <span id="modeIndicator">✏️ Editor Mode - Type your markdown here</span>
+    </div>
+    
+    <div class="content">
+      <div class="editor-pane" id="editorPane">
+        <textarea id="editor"># Welcome to Markdown Editor! 🎉
+
+This is a **powerful** markdown editor with **three modes** including Obsidian-style live preview!
+
+## Features ✨
+
+- 📝 **Rich Markdown Editing** with syntax highlighting
+- ✨ **Live Preview Mode** - Edit rendered markdown directly (like Obsidian!)
+- 👁️ **Preview Mode** - Read-only rendered output
+- 🔄 **Three-Mode Toggle** - Switch between editor, live preview, and preview
+- 🎨 **Modern UI** with clean design
+- ⌨️ **Keyboard Shortcuts** - Ctrl/Cmd + 1/2/3 to switch modes
+
+## Markdown Examples
+
+### Text Formatting
+- **Bold text** and *italic text*
+- ~~Strikethrough~~ and `inline code`
+- [Links](https://example.com) and images
+
+### Code Blocks
+```javascript
+function greet(name) {
+  console.log(`Hello, ${name}!`);
+}
+greet('World');
+```
+
+### Lists
+1. First item
+2. Second item
+   - Nested item
+   - Another nested item
+
+### Blockquotes
+> This is a blockquote.
+> It can span multiple lines.
+
+### Tables
+| Feature | Status |
+|---------|--------|
+| Editor | ✅ Ready |
+| Preview | ✅ Ready |
+| Toggle | ✅ Ready |
+
+---
+
+**Try it out!** 
+- 📝 **Editor Mode**: Traditional split-pane with raw markdown + preview
+- ✨ **Live Preview Mode**: Edit rendered markdown directly (Obsidian-style!)
+- 👁️ **Preview Mode**: Read-only rendered output
+
+Use the buttons above or keyboard shortcuts (Ctrl/Cmd + 1/2/3) to switch modes! 🚀</textarea>
+      </div>
+      
+      <div class="preview-pane" id="previewPane">
+        <div class="preview-content" id="previewContent"></div>
+      </div>
+      
+      <div class="live-preview-pane hidden" id="livePreviewPane" contenteditable="true">
+        <div class="live-preview-content" id="livePreviewContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CodeMirror -->
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/markdown/markdown.js"></script>
+
+  <!-- Marked.js for Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+
+  <script>
+    let currentMode = 'editor'; // 'editor', 'live-preview', 'preview'
+    let editor;
+    let isUpdating = false; // Prevent circular updates
+    let markdownContent = ''; // Single source of truth
+
+    // Initialize CodeMirror
+    function initEditor() {
+      editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+        lineNumbers: true,
+        mode: "markdown",
+        theme: "default",
+        lineWrapping: true,
+        autoCloseBrackets: true,
+        matchBrackets: true,
+        extraKeys: {
+          "Ctrl-/": "toggleComment",
+          "Cmd-/": "toggleComment"
+        }
+      });
+
+      // Set initial content as source of truth
+      markdownContent = editor.getValue();
+
+      // Update previews on content change
+      editor.on('change', function() {
+        if (!isUpdating) {
+          markdownContent = editor.getValue();
+          updateAllViews();
+        }
+      });
+      
+      // Initial preview update
+      updateAllViews();
+    }
+
+    // Update all views from the single source of truth
+    function updateAllViews() {
+      if (isUpdating) return;
+      
+      const html = marked.parse(markdownContent);
+      
+      // Update regular preview
+      document.getElementById('previewContent').innerHTML = html;
+      
+      // Update live preview (only if not currently being edited)
+      const livePreviewContent = document.getElementById('livePreviewContent');
+      if (document.activeElement !== livePreviewContent && !livePreviewContent.contains(document.activeElement)) {
+        livePreviewContent.innerHTML = html;
+      }
+      
+      // Update editor if needed (when changes come from live preview)
+      if (editor.getValue() !== markdownContent) {
+        isUpdating = true;
+        editor.setValue(markdownContent);
+        isUpdating = false;
+      }
+    }
+
+    // Convert HTML back to markdown with better accuracy
+    function htmlToMarkdown(html) {
+      const temp = document.createElement('div');
+      temp.innerHTML = html;
+      
+      function processNode(node, depth = 0) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return node.textContent;
+        }
+        
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const tagName = node.tagName.toLowerCase();
+          let children = '';
+          
+          // Process child nodes
+          for (let child of node.childNodes) {
+            children += processNode(child, depth);
+          }
+          
+          switch (tagName) {
+            case 'h1': return `# ${children.trim()}\n\n`;
+            case 'h2': return `## ${children.trim()}\n\n`;
+            case 'h3': return `### ${children.trim()}\n\n`;
+            case 'h4': return `#### ${children.trim()}\n\n`;
+            case 'h5': return `##### ${children.trim()}\n\n`;
+            case 'h6': return `###### ${children.trim()}\n\n`;
+            case 'p': 
+              const trimmed = children.trim();
+              return trimmed ? `${trimmed}\n\n` : '\n';
+            case 'strong': case 'b': return `**${children}**`;
+            case 'em': case 'i': return `*${children}*`;
+            case 'code': return `\`${children}\``;
+            case 'pre': 
+              const codeContent = children.replace(/<[^>]*>/g, ''); // Strip any HTML tags
+              return `\`\`\`\n${codeContent}\n\`\`\`\n\n`;
+            case 'blockquote': 
+              return children.split('\n').map(line => line.trim() ? `> ${line.trim()}` : '>').join('\n') + '\n\n';
+            case 'ul': return `${children}`;
+            case 'ol': return `${children}`;
+            case 'li': 
+              const indent = '  '.repeat(depth);
+              return `${indent}- ${children.trim()}\n`;
+            case 'a': 
+              const href = node.getAttribute('href') || '#';
+              return `[${children}](${href})`;
+            case 'br': return '\n';
+            case 'hr': return '\n---\n\n';
+            case 'div': return `${children}`;
+            default: return children;
+          }
+        }
+        
+        return '';
+      }
+      
+      return processNode(temp).replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    // Parse markdown syntax in real-time
+    function parseMarkdownSyntax(text) {
+      // Handle headers
+      text = text.replace(/^(#{1,6})\s+(.+)$/gm, (match, hashes, content) => {
+        const level = hashes.length;
+        return `<h${level}>${content.trim()}</h${level}>`;
+      });
+      
+      // Handle bold
+      text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      
+      // Handle italic
+      text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      
+      // Handle inline code
+      text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+      
+      // Handle lists (simple version)
+      text = text.replace(/^[-*+]\s+(.+)$/gm, '<li>$1</li>');
+      
+      // Wrap consecutive list items in ul
+      text = text.replace(/(<li>.*<\/li>\s*)+/gs, '<ul>$&</ul>');
+      
+      // Handle line breaks
+      text = text.replace(/\n\n/g, '</p><p>');
+      text = text.replace(/\n/g, '<br>');
+      
+      // Wrap in paragraphs if not already wrapped
+      if (!text.startsWith('<')) {
+        text = `<p>${text}</p>`;
+      }
+      
+      return text;
+    }
+
+    // Switch between modes
+    function switchMode(mode) {
+      const editorPane = document.getElementById('editorPane');
+      const previewPane = document.getElementById('previewPane');
+      const livePreviewPane = document.getElementById('livePreviewPane');
+      const modeIndicator = document.getElementById('modeIndicator');
+      const modeButtons = document.querySelectorAll('.mode-button');
+      
+      // Update active button
+      modeButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+      
+      // Hide all panes first
+      editorPane.classList.add('hidden');
+      previewPane.classList.add('hidden');
+      livePreviewPane.classList.add('hidden');
+      
+      // Remove full-width from all
+      editorPane.classList.remove('full-width');
+      previewPane.classList.remove('full-width');
+      livePreviewPane.classList.remove('full-width');
+      
+      currentMode = mode;
+      
+      switch (mode) {
+        case 'editor':
+          editorPane.classList.remove('hidden');
+          previewPane.classList.remove('hidden');
+          modeIndicator.textContent = '📝 Editor Mode - Type your markdown here';
+          setTimeout(() => editor.refresh(), 10);
+          break;
+          
+        case 'live-preview':
+          livePreviewPane.classList.remove('hidden');
+          livePreviewPane.classList.add('full-width');
+          modeIndicator.textContent = '✨ Live Preview Mode - Edit rendered markdown directly (Obsidian-style)';
+          updateAllViews();
+          break;
+          
+        case 'preview':
+          previewPane.classList.remove('hidden');
+          previewPane.classList.add('full-width');
+          modeIndicator.textContent = '👁️ Preview Mode - Read-only rendered markdown';
+          updateAllViews();
+          break;
+      }
+    }
+
+    // Handle live preview editing with real-time markdown parsing
+    function setupLivePreviewEditing() {
+      const livePreviewContent = document.getElementById('livePreviewContent');
+      let inputTimeout;
+      
+      // Handle input in live preview
+      livePreviewContent.addEventListener('input', function() {
+        if (isUpdating) return;
+        
+        // Convert HTML back to markdown and update source of truth
+        const html = this.innerHTML;
+        const newMarkdown = htmlToMarkdown(html);
+        
+        // Update single source of truth
+        markdownContent = newMarkdown;
+        
+        // Update other views
+        isUpdating = true;
+        updateAllViews();
+        isUpdating = false;
+      });
+      
+      // Handle keyup for real-time markdown parsing
+      livePreviewContent.addEventListener('keyup', function(e) {
+        // Clear previous timeout
+        if (inputTimeout) {
+          clearTimeout(inputTimeout);
+        }
+        
+        // Set a small delay to parse markdown syntax
+        inputTimeout = setTimeout(() => {
+          parseMarkdownInLivePreview();
+        }, 300);
+      });
+      
+      // Handle Enter key for markdown parsing
+      livePreviewContent.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          // Small delay to let the enter key complete, then parse
+          setTimeout(() => {
+            parseMarkdownInLivePreview();
+          }, 10);
+        }
+        
+        // Handle keyboard shortcuts
+        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+          e.preventDefault();
+          document.execCommand('bold');
+        }
+        
+        if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+          e.preventDefault();
+          document.execCommand('italic');
+        }
+      });
+      
+      // Handle paste in live preview
+      livePreviewContent.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const text = e.clipboardData.getData('text/plain');
+        document.execCommand('insertText', false, text);
+        
+        // Parse markdown after paste
+        setTimeout(() => {
+          parseMarkdownInLivePreview();
+        }, 10);
+      });
+    }
+    
+    // Parse markdown syntax in live preview and update content
+    function parseMarkdownInLivePreview() {
+      const livePreviewContent = document.getElementById('livePreviewContent');
+      const selection = window.getSelection();
+      let range = null;
+      let offset = 0;
+      
+      // Save cursor position
+      if (selection.rangeCount > 0) {
+        range = selection.getRangeAt(0);
+        offset = range.startOffset;
+      }
+      
+      // Get current text content
+      const textContent = livePreviewContent.textContent || livePreviewContent.innerText;
+      
+      // Check if text contains markdown syntax
+      const hasMarkdownSyntax = /^#{1,6}\s+|^\s*[-*+]\s+|\*\*.*\*\*|\*.*\*|`.*`/.test(textContent);
+      
+      if (hasMarkdownSyntax) {
+        // Parse as markdown and update
+        const newMarkdown = textContent;
+        markdownContent = newMarkdown;
+        
+        // Update all views
+        isUpdating = true;
+        const html = marked.parse(markdownContent);
+        livePreviewContent.innerHTML = html;
+        
+        // Update other views
+        document.getElementById('previewContent').innerHTML = html;
+        if (editor.getValue() !== markdownContent) {
+          editor.setValue(markdownContent);
+        }
+        
+        // Try to restore cursor position (simplified)
+        try {
+          const newRange = document.createRange();
+          const textNode = livePreviewContent.firstChild;
+          if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+            newRange.setStart(textNode, Math.min(offset, textNode.textContent.length));
+            newRange.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+          }
+        } catch (e) {
+          // Cursor restoration failed, that's ok
+        }
+        
+        isUpdating = false;
+      }
+    }
+
+    // Event listeners for mode buttons
+    function setupModeButtons() {
+      const modeButtons = document.querySelectorAll('.mode-button');
+      modeButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          switchMode(button.dataset.mode);
+        });
+      });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      // Ctrl/Cmd + 1/2/3 for mode switching
+      if ((e.ctrlKey || e.metaKey) && ['1', '2', '3'].includes(e.key)) {
+        e.preventDefault();
+        const modes = ['editor', 'live-preview', 'preview'];
+        switchMode(modes[parseInt(e.key) - 1]);
+      }
+    });
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      initEditor();
+      setupModeButtons();
+      setupLivePreviewEditing();
+    });
+  </script>
+</body>
+</html>
