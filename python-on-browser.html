@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CodeMirror + Pyodide</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.css">
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    .CodeMirror {
+      border: 1px solid #ccc;
+      height: 300px;
+    }
+    button {
+      margin-top: 10px;
+      padding: 6px 12px;
+    }
+    #output {
+      background: #f5f5f5;
+      padding: 10px;
+      border: 1px solid #ddd;
+      white-space: pre-wrap;
+      font-family: monospace;
+      height: 200px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Python Runner with CodeMirror + Pyodide</h2>
+  <textarea id="editor">print("Hello from Python!")
+print("This is line 2")
+for i in range(3):
+    print(f"Loop iteration: {i}")</textarea>
+  <br>
+  <button onclick="runPython()">Run Python</button>
+  <button onclick="clearOutput()">Clear Output</button>
+
+  <h3>Output:</h3>
+  <div id="output"></div>
+
+  <!-- CodeMirror -->
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/python/python.js"></script>
+
+  <!-- Pyodide -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+
+  <script>
+    let pyodideReady = false;
+    let pyodide;
+
+    async function initPyodide() {
+      pyodide = await loadPyodide();
+      
+      // Redirect Python stdout to capture print statements
+      pyodide.runPython(`
+import sys
+from io import StringIO
+
+class OutputCapture:
+    def __init__(self):
+        self.output = []
+    
+    def write(self, text):
+        self.output.append(text)  # Capture all text including newlines
+    
+    def flush(self):
+        pass
+    
+    def get_output(self):
+        return ''.join(self.output)
+    
+    def clear(self):
+        self.output = []
+
+# Create global output capture instance
+_output_capture = OutputCapture()
+      `);
+      
+      pyodideReady = true;
+      console.log("✅ Pyodide is ready!");
+    }
+    initPyodide();
+
+    // Initialize CodeMirror
+    const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+      lineNumbers: true,
+      mode: "python",
+      theme: "default"
+    });
+
+    async function runPython() {
+      const outputEl = document.getElementById("output");
+      outputEl.textContent = "⏳ Running...";
+      
+      if (!pyodideReady) {
+        outputEl.textContent = "⚠️ Pyodide is still loading, please wait...";
+        return;
+      }
+      
+      const code = editor.getValue();
+      
+      try {
+        // Clear previous output and redirect stdout
+        pyodide.runPython(`
+_output_capture.clear()
+sys.stdout = _output_capture
+        `);
+        
+        // Run the user's code
+        let result = await pyodide.runPythonAsync(code);
+        
+        // Restore stdout and get captured output
+        const capturedOutput = pyodide.runPython(`
+sys.stdout = sys.__stdout__
+_output_capture.get_output()
+        `);
+        
+        // Display the output
+        let displayText = "";
+        if (capturedOutput) {
+          displayText += capturedOutput;
+        }
+        
+        // If there's a return value, show it too
+        if (result !== undefined && result !== null) {
+          if (displayText) displayText += "\n";
+          displayText += `Return value: ${result.toString()}`;
+        }
+        
+        if (displayText) {
+          outputEl.textContent = displayText;
+        } else {
+          outputEl.textContent = "✔️ Code executed successfully (no output)";
+        }
+        
+      } catch (err) {
+        // Restore stdout in case of error
+        pyodide.runPython("sys.stdout = sys.__stdout__");
+        outputEl.textContent = "❌ Error: " + err;
+      }
+    }
+
+    function clearOutput() {
+      document.getElementById("output").textContent = "";
+    }
+  </script>
+</body>
+</html>
